@@ -1,6 +1,7 @@
 import pygame as pg
 from camera import *
 from util.config import *
+from collision import *
 
 class GameState:
 
@@ -14,6 +15,7 @@ class GameState:
 		self.clock = pg.time.Clock()
 		self.camera = Camera(self.input, center = pg.Vector2(self.window.get_size()) / 2)
 		self.entities = []
+		self.collision_handler = CollisionHandler(self.entities)
 
 		self.color_bg = pg.Color(0, 0, 0)
 
@@ -34,6 +36,8 @@ class GameState:
 
 		for ent in self.entities:
 			ent.tick(dt)
+
+		self.collision_handler.tick()
 
 		self.entities = [ent for ent in self.entities if ent.valid]
 

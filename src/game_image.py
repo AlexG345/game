@@ -39,6 +39,7 @@ class GameImage:
 		surface.blit(self.image_scaled, camera.to_scr_pos(pos) - self.center)
 
 
+
 class RepeatingImage:
 
 	def __init__(self, im, base_scale = 1):

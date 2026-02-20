@@ -38,7 +38,7 @@ def game_loop(surface):
 	im = pg.transform.scale(pg.image.load(CONFIG.get_asset_path("arrow.jpg")), (64, 10))
 
 	cannons = []
-	for i in range(10):
+	for i in range(1):
 		cannons.append(game_state.add_entity(
 			Cannon(
 				pos = (1000*sin(i/4), 1000*cos(i/4)),
@@ -53,7 +53,7 @@ def game_loop(surface):
 				quitting = True
 
 		for cannon in cannons:
-			x, y = (cannon.mvt.get_predicted_pos(player_1.mvt, 1200) - cannon.get_pos())
+			x, y = (cannon.mvt.get_predicted_pos(player_1.mvt, 150) - cannon.get_pos())
 			cannon.mvt.update_angle(atan2(y, x) + uniform(-0.01, 0.01))
 
 		game_state.tick(120)

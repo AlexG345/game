@@ -46,8 +46,16 @@ class Mortal(Entity):
 	def __init__(self, health = 100, **kwargs):
 		super().__init__(**kwargs)
 		self.health = Ressource(health)
+		self.show_health = True
 
+	def draw(self, surface, camera):
+		super().draw(surface, camera)
 
+		if self.show_health:
+			pos = self.get_pos()
+			x, y = pos.x, pos.y
+			y -= self.image.image.get_height() * 0.75
+			self.health.draw(surface, camera, x, y)
 
 
 class Player(Mortal):
@@ -98,7 +106,9 @@ class Projectile(Mortal):
 	def __init__(self, angle = 0, **kwargs):
 		super().__init__(**kwargs)
 
-		self.movement_speed = 1200
+		self.show_health = False
+
+		self.movement_speed = 150
 		self.lifetime = 3
 		self.timeleft = self.lifetime
 
