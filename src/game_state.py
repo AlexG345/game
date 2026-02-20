@@ -1,5 +1,6 @@
 import pygame as pg
 from camera import *
+from util.config import *
 
 class GameState:
 
@@ -12,16 +13,18 @@ class GameState:
 		self.input = input
 		self.clock = pg.time.Clock()
 		self.camera = Camera(self.input, center = pg.Vector2(self.window.get_size()) / 2)
-		print(self.camera.center)
 		self.entities = []
 
 		self.color_bg = pg.Color(0, 0, 0)
 
+		CONFIG.game_state = self
 
-	def add_entity(self, entity):
-		if entity not in self.entities:
-			self.entities.append(entity)
 
+	def add_entity(self, ent):
+		if ent not in self.entities:
+			self.entities.append(ent)
+			ent.image.update_image(self.camera)
+		return ent
 
 	def tick(self, max_fps):
 
@@ -31,6 +34,8 @@ class GameState:
 
 		for ent in self.entities:
 			ent.tick(dt)
+
+		self.entities = [ent for ent in self.entities if ent.valid]
 
 		doZoom = self.camera.tick(dt)
 		if doZoom:

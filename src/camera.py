@@ -1,17 +1,20 @@
 import pygame as pg
 
-class Camera:
+from entity import *
+
+
+class Camera(Entity):
 
 	def __init__(self,
 		input,
 		pos = pg.Vector2(),
 		zoom = 1,
 		center = pg.Vector2(),
-		target = False
+		target = None
 	):
 
+		super().__init__(pos)
 		self.input = input
-		self.pos = pos
 		self.zoom = zoom
 		self.center = center
 		self.target = target
@@ -23,14 +26,19 @@ class Camera:
 			self.zoom *= 2 ** (mul * dt)
 
 
-	# returns new vector
-	def to_scr_pos(self, pos):
-		return (pos - self.pos) * self.zoom + self.center
-		#return pos - self.pos * self.zoom + self.center
-
-
 	def to_scr_size(self, value):
 		return value * self.zoom
+
+	# returns new vector
+	def to_scr_pos(self, pos):
+		vec = pos - self.get_pos()
+		vec.y *= -1
+		return vec * self.zoom + self.center
+
+	def to_world_pos(self, pos):
+		pos = (pos - self.center) / self.zoom
+		pos.y *= -1
+		return pos + self.get_pos()
 
 
 	def tick(self, dt):
@@ -42,12 +50,12 @@ class Camera:
 
 		self.offset = self.offset.lerp(
 			# TODO: make mouse pos normalized relative to screen size
-			(pg.mouse.get_pos() - self.center) * 0.2,
+			(self.to_world_pos(pg.mouse.get_pos()) - self.get_pos()) * 0.2,
 			pg.math.clamp(10 * dt, 0, 1)
 		)
-		if self.target != False:
 
-			self.pos.update(self.target.pos + self.offset)
+		if self.target != None:
+			self.mvt.update_pos(self.target.get_pos() + self.offset)
 
 		return doZoom
 

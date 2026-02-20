@@ -1,52 +1,61 @@
 from input import *
 from game_image import *
 from ressource import *
+from movement_handler import *
+from util.config import *
+from math import *
 
 class Entity:
 
-	def __init__(self, x = 0, y = 0, im = "Ressources/bat1.png"):
+	def __init__(self, pos = pg.Vector2(), im = None, **kwargs):
 
-		self.pos = pg.Vector2(x, y)
-		self.speed = pg.Vector2()
-
-		if isinstance(im, str):
-			self.image = GameImage(im)
-		else:
-			self.image = im
-
+		self.mvt = MovementHandler()
+		self.mvt.update_pos(pos)
 		self.movement_speed = 250
+		self.movement_rate = 5
+		self.valid = True
+		self.image = im
+
+	def die(self):
+		self.valid = False
+
+	def set_image(self, im):
+		self.image.set_image(im)
+
+	def get_pos(self):
+		return self.mvt.pos
 
 	def move(self, direction, dt=1, speed = None):
 
 		if speed is None:
 			speed = self.movement_speed
 
-		if direction.x != 0 or direction.y != 0:
-			direction = direction.normalize()
-
-		self.speed = self.speed.lerp(direction * speed, pg.math.clamp(2*dt, 0, 1))
-
+		self.mvt.move(direction, dt, speed, self.movement_rate)
 
 	def tick(self, dt):
-		self.pos += self.speed * dt
-
+		self.mvt.tick(dt)
 
 	def draw(self, surface, camera):
-		self.image.draw(surface, self.pos, camera)
+		if self.image != None:
+			self.image.draw(surface, self.get_pos(), camera)
+
 
 
 class Mortal(Entity):
 
-	def __init__(self, x, y, im, health = 100):
-		super().__init__(x, y, im)
+	def __init__(self, health = 100, **kwargs):
+		super().__init__(**kwargs)
 		self.health = Ressource(health)
+
+
 
 
 class Player(Mortal):
 
-	def __init__(self, x, y, im, input):
-		super().__init__(x, y, im)
+	def __init__(self, input, **kwargs):
+		super().__init__(**kwargs)
 		self.input = input
+		self.movement_speed = 1000
 
 
 	def tick(self, dt):
@@ -57,8 +66,8 @@ class Player(Mortal):
 class Enemy(Mortal):
 
 	# set target to None to stop targetting
-	def __init__(self, x, y, im, target = None):
-		super().__init__(x, y, im)
+	def __init__(self, target = None, **kwargs):
+		super().__init__(**kwargs)
 		self.target = target
 
 
@@ -67,10 +76,8 @@ class Enemy(Mortal):
 
 
 	def move_towards_target(self, dt):
-		#t = pg.time.get_ticks()/1000
-		#self.move(pg.Vector2(sin(3*t), 1), dt)
 		if self.target != None:
-			self.move(self.target.pos - self.pos, dt)
+			self.mvt.follow(self.target.mvt, dt, self.movement_speed, self.movement_rate, 1)
 
 
 	def tick(self, dt):
@@ -81,9 +88,52 @@ class Enemy(Mortal):
 # useless class
 class FlyingEnemy(Enemy):
 
-	def __init__(self, x, y, im, target):
-		super().__init__(x, y, im, target)
-		self.movement_speed = 100
+	def __init__(self, **kwargs):
+		super().__init__(**kwargs)
+		self.movement_speed = 500
+
+
+class Projectile(Mortal):
+
+	def __init__(self, angle = 0, **kwargs):
+		super().__init__(**kwargs)
+
+		self.movement_speed = 1200
+		self.lifetime = 3
+		self.timeleft = self.lifetime
+
+		self.mvt.update_angle(angle)
+		self.mvt.update_velocity(self.mvt.direction * self.movement_speed)
+
+	def tick(self, dt):
+		super().tick(dt)
+
+		self.timeleft -= dt
+		self.image.rotate_image_rad(self.mvt.angle)
+
+		if self.timeleft <= 0:
+			self.die()
+
+
+class Cannon(Entity):
+
+	def __init__(self, proj_im = None, **kwargs):
+		super().__init__(**kwargs)
+		self.projectile_image = proj_im
+
+	def tick(self, dt):
+		super().tick(dt)
+
+		CONFIG.game_state.add_entity(
+			Projectile(
+				pos = self.get_pos(),
+				angle = self.mvt.angle,
+				im = GameImage(self.projectile_image)
+			)
+		)
+
+
+
 
 
 
@@ -116,12 +166,12 @@ class FlyingEnemy(Enemy):
 # 			self.move_towards_target(dt)
 # 		else:
 
-# 			dpos = self.parent.pos - self.pos
+# 			dpos = self.parent.pos - self.get_pos()
 # 			sq_dist = dpos.length_squared()
 
 # 			if sq_dist > self.rest_distance ** 2:
 # 				speed = self.movement_speed * sq_dist / (self.rest_distance ** 2)
-# 				self.move(self.parent.pos - self.pos, dt * 10, speed)
+# 				self.move(self.parent.pos - self.get_pos(), dt * 10, speed)
 # 			else:
 # 				self.move(pg.Vector2(0, 0), dt * 50, self.movement_speed * 10)
 
@@ -155,7 +205,7 @@ class FlyingEnemy(Enemy):
 
 # 	def add_segments(self, length):
 # 		if self.is_tail():
-# 			self.child = Snake(self.pos.x, self.pos.y, self.image, None, self.length - 1)
+# 			self.child = Snake(self.get_pos().x, self.get_pos().y, self.image, None, self.length - 1)
 # 		else:
 # 			self.child.add_segment()
 
