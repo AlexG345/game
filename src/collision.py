@@ -1,22 +1,66 @@
-def point_to_circle(x1, y1, x2, y2, r):
-	return (x1 - x2) ** 2 + (y1 - y2) ** 2 < r*r
+from util import math2
 
-def circle_to_circle(x1, y1, r1, x2, y2, r2):
-	return (x1 - x2) ** 2 + (y1 - y2) ** 2 < (r1+r2)**2
 
-def circle_to_circle_2p(p1, r1, p2, r2):
-	return circle_to_circle(p1.x, p1.y, r1, p2.x, p2.y, r2)
+class Hitbox():
+
+	# parent should be an Entity (or related)
+	def __init__(self, parent):
+		self.parent = parent
+
+	def get_pos(self):
+		return self.parent.get_pos()
+
+	def get_radius(self):
+		return self.parent.radius
+
+	def collide(self, hitbox):
+		return math2.circle_to_circle_2p(self.get_pos(), self.get_radius(), hitbox.get_pos(), hitbox.get_radius())
 
 
 class CollisionHandler():
 
-	def __init__(self, entities = []):
-
-		self.entities = entities
+	def __init__(self, groups = {}):
+		self.groups = groups
 
 	def tick(self):
-		for i, ent1 in enumerate(self.entities):
-			for _, ent2 in enumerate(self.entities, i+1):
-				if circle_to_circle_2p(ent1.get_pos(), 10, ent2.get_pos(), 10):
-					ent1.die()
-					ent2.die()
+		# an ENTITY can ONLY have ONE collision group
+
+		#print("---------------")
+
+		for k1 in self.groups:
+			cg1 = self.groups[k1]
+			for k2 in self.groups:
+				cg2 = self.groups[k2]
+
+				#print(k1, len(cg1.entities), k2, len(cg2.entities))
+
+				if not (cg2 in cg1.mask and cg1 in cg2.mask):
+					continue
+
+				#print(" collides")
+
+				for ent1 in cg1.entities:
+					for ent2 in cg2.entities:
+
+						# TODO: save ent1 and ent2 collision result in case it's used again?
+						if not ent1.hitbox.collide(ent2.hitbox):
+							continue
+
+						ent1.health.change(-1)
+						ent2.health.change(-1)
+
+class CollisionGroup():
+
+	def __init__(self):
+		self.mask = set()
+		self.entities = set()
+
+	# mask: { colgroup1, colgroup2, etc... }
+	def set_mask(self, mask):
+		self.mask = mask
+
+	def add_entity(self, entity):
+		self.entities.add(entity)
+
+	def remove_entity(self, entity):
+		self.entities.remove(entity)

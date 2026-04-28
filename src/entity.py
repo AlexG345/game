@@ -4,19 +4,55 @@ from ressource import *
 from movement_handler import *
 from util.config import *
 from math import *
+from collision import *
 
 class Entity:
 
-	def __init__(self, pos = pg.Vector2(), im = None, **kwargs):
-
+	def __init__(
+		self,
+		pos = pg.Vector2(),
+		radius = 10,
+		im = None,
+		cg_name = None, # collision group name
+		mvt_speed = 250,
+		**kwargs
+	):
 		self.mvt = MovementHandler()
 		self.mvt.update_pos(pos)
-		self.movement_speed = 250
+		self.movement_speed = mvt_speed
 		self.movement_rate = 5
 		self.valid = True
 		self.image = im
+		self.radius = radius
+
+		self.hitbox = Hitbox(parent = self)
+
+		self.collision_group = None
+		if cg_name is not None:
+			self.set_collision_group_by_name(cg_name)
+
+	def set_collision_group(self, cg):
+		self.clear_collision_group()
+
+		if cg is not None:
+			self.collision_group = cg
+			cg.add_entity(self)
+
+	def set_collision_group_by_name(self, cg_name):
+
+		if cg_name is not None:
+			self.set_collision_group(CONFIG.game_state.collision_handler.groups[cg_name])
+		else:
+			self.clear_collision_group()
+
+	def clear_collision_group(self):
+		if self.collision_group is not None:
+			self.collision_group.remove_entity(self)
+			self.collision_group = None
+
 
 	def die(self):
+		self.clear_collision_group()
 		self.valid = False
 
 	def set_image(self, im):
@@ -25,18 +61,19 @@ class Entity:
 	def get_pos(self):
 		return self.mvt.pos
 
-	def move(self, direction, dt=1, speed = None):
+	def move(self, direction, max_speed = None):
 
-		if speed is None:
-			speed = self.movement_speed
+		if max_speed is None:
+			max_speed = self.movement_speed
 
-		self.mvt.move(direction, dt, speed, self.movement_rate)
+		self.mvt.move(direction, max_speed)
+
 
 	def tick(self, dt):
 		self.mvt.tick(dt)
 
 	def draw(self, surface, camera):
-		if self.image != None:
+		if self.image is not None:
 			self.image.draw(surface, self.get_pos(), camera)
 
 
@@ -54,8 +91,13 @@ class Mortal(Entity):
 		if self.show_health:
 			pos = self.get_pos()
 			x, y = pos.x, pos.y
-			y -= self.image.image.get_height() * 0.75
+			y -= self.radius * 1.5
 			self.health.draw(surface, camera, x, y)
+
+	def tick(self, dt):
+		super().tick(dt)
+		if self.health.current < 0:
+			self.die()
 
 
 class Player(Mortal):
@@ -67,8 +109,10 @@ class Player(Mortal):
 
 
 	def tick(self, dt):
-		self.move(self.input.action_values["movement"], dt)
+		x, y = self.mvt.pos.x, self.mvt.pos.y
+		self.move(self.input.action_values["movement"])
 		super().tick(dt)
+		print((self.mvt.pos - (x, y)).length())
 
 
 class Enemy(Mortal):
@@ -84,8 +128,8 @@ class Enemy(Mortal):
 
 
 	def move_towards_target(self, dt):
-		if self.target != None:
-			self.mvt.follow(self.target.mvt, dt, self.movement_speed, self.movement_rate, 1)
+		if self.target is not None:
+			self.mvt.follow(self.target.mvt, self.movement_speed)
 
 
 	def tick(self, dt):
@@ -93,29 +137,24 @@ class Enemy(Mortal):
 		super().tick(dt)
 
 
-# useless class
-class FlyingEnemy(Enemy):
-
-	def __init__(self, **kwargs):
-		super().__init__(**kwargs)
-		self.movement_speed = 500
-
 
 class Projectile(Mortal):
 
-	def __init__(self, angle = 0, **kwargs):
+	def __init__(self, angle = 0, lifetime = 3, **kwargs):
 		super().__init__(**kwargs)
 
+		self.health.current = 1
 		self.show_health = False
 
-		self.movement_speed = 150
-		self.lifetime = 3
+		self.lifetime = lifetime
 		self.timeleft = self.lifetime
 
 		self.mvt.update_angle(angle)
 		self.mvt.update_velocity(self.mvt.direction * self.movement_speed)
 
 	def tick(self, dt):
+
+		self.mvt.update_velocity(self.mvt.direction * self.movement_speed)
 		super().tick(dt)
 
 		self.timeleft -= dt
@@ -127,101 +166,44 @@ class Projectile(Mortal):
 
 class Cannon(Entity):
 
-	def __init__(self, proj_im = None, **kwargs):
+	def __init__(self, proj_im = None, proj_speed = 50, proj_dist = 0, **kwargs):
 		super().__init__(**kwargs)
+		self.projectile_distance = proj_dist
 		self.projectile_image = proj_im
+		self.projectile_speed = proj_speed
+
+		self.cooldown = 0.01
+		self.timeleft = self.cooldown
 
 	def tick(self, dt):
 		super().tick(dt)
 
-		CONFIG.game_state.add_entity(
-			Projectile(
-				pos = self.get_pos(),
-				angle = self.mvt.angle,
-				im = GameImage(self.projectile_image)
+		self.timeleft -= dt
+		self.image.rotate_image_rad(self.mvt.angle)
+
+		if self.timeleft <= 0:
+			self.timeleft = self.cooldown
+
+			CONFIG.game_state.add_entity(
+				Projectile(
+					pos = self.get_pos() + self.mvt.direction * self.projectile_distance,
+					angle = self.mvt.angle,
+					cg_name = "Enemy",
+					im = GameImage(self.projectile_image),
+					mvt_speed = self.projectile_speed,
+				)
 			)
-		)
 
 
+class AutoCannon(Cannon):
 
+	def __init__(self, target = None, **kwargs):
+		super().__init__(**kwargs)
+		self.target = target
 
-
-
-# class Snake(Enemy):
-
-# 	def __init__(self, x, y, im, target, length = 0):
-# 		super().__init__(x, y, im, target)
-
-# 		self.rest_distance = 50
-
-# 		if self.length > 0:
-# 			self.child = Snake(x, y, None, None, self.length - 1)
-# 			self.child.parent = self
-# 		else:
-# 			self.child = None
-
-# 		if self.is_head():
-# 			self.set_image(self.image)
-
-
-# 	def draw(self, *args):
-# 		if not self.is_tail():
-# 			self.child.draw(*args)
-# 		super().draw(*args)
-
-
-# 	def tick(self, dt):
-
-# 		if self.is_head():
-# 			self.move_towards_target(dt)
-# 		else:
-
-# 			dpos = self.parent.pos - self.get_pos()
-# 			sq_dist = dpos.length_squared()
-
-# 			if sq_dist > self.rest_distance ** 2:
-# 				speed = self.movement_speed * sq_dist / (self.rest_distance ** 2)
-# 				self.move(self.parent.pos - self.get_pos(), dt * 10, speed)
-# 			else:
-# 				self.move(pg.Vector2(0, 0), dt * 50, self.movement_speed * 10)
-
-# 		if not self.is_tail():
-# 			self.child.tick(dt)
-
-# 		super().tick(dt)
-
-
-
-# # SnakeBase is just an Enemy that can have a child and a parent
-
-# class SnakeBase(Enemy):
-
-# 	def __init__(self, x, y, im, target, length = 0):
-
-# 		super().__init__(x, y, im, target)
-# 		self.length = length
-
-# 		self.parent = None
-# 		self.child = None
-
-# 		self.add_segments(self, length)
-
-
-# 	def set_image(self, im):
-# 		self.image = im
-# 		if not self.is_tail():
-# 			self.child.set_image(im)
-
-
-# 	def add_segments(self, length):
-# 		if self.is_tail():
-# 			self.child = Snake(self.get_pos().x, self.get_pos().y, self.image, None, self.length - 1)
-# 		else:
-# 			self.child.add_segment()
-
-# 	def is_head(self):
-# 		return self.parent is None
-
-
-# 	def is_tail(self):
-# 		return self.child is None
+	def tick(self, dt):
+		if self.target is not None:
+			x, y = (self.mvt.get_predicted_pos(self.target.mvt, self.projectile_speed) - self.get_pos())
+			self.mvt.turn_towards_angle(atan2(y, x), 1, dt)
+		#self.mvt.update_angle(atan2(y, x))#"+ uniform(-0.01, 0.01))
+		super().tick(dt)

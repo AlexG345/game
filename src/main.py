@@ -19,33 +19,55 @@ def game_loop(surface):
 	})
 
 	global game_state
-	game_state = GameState(surface, input)
+	game_state	= GameState(surface, input)
 	camera		= game_state.camera
 
-	player_1	= Player(pos = (0, 0), im = GameImage(CONFIG.get_asset_path("standing.png")), input = input)
+	player_1	= Player(
+		pos = (0, 0),
+		im = GameImage(CONFIG.get_asset_path("standing.png")),
+		cg_name = "Ally",
+		input = input
+	)
 
-	bg = Entity((0, 0), RepeatingImage(CONFIG.get_asset_path("rocks.jpg"), 0.1))
+	bg = Entity(
+		(0, 0),
+		im = RepeatingImage(CONFIG.get_asset_path("hexagons.png"), 4)
+	)
 	game_state.add_entity(bg)
-
 
 	camera.target = player_1
 
 	game_state.add_entity(player_1)
 
-	#game_state.add_entity(FlyingEnemy(pos = (50, 0), im = GameImage(CONFIG.get_asset_path("bat1.png")), target = player_1))
 
-
-	im = pg.transform.scale(pg.image.load(CONFIG.get_asset_path("arrow.jpg")), (64, 10))
+	im = pg.transform.scale(pg.image.load(CONFIG.get_asset_path("laser.png")), (100, 20))
 
 	cannons = []
-	for i in range(1):
+	for i in range(0):
 		cannons.append(game_state.add_entity(
 			Cannon(
 				pos = (1000*sin(i/4), 1000*cos(i/4)),
 				im = GameImage(CONFIG.get_asset_path("standing.png")),
-				proj_im = GameImage(im)
+				proj_im = GameImage(im, 1),
+				proj_speed = 1000,
+				proj_dist = 100
 			)
 		))
+
+	enemy = game_state.add_entity(Enemy(
+		im = GameImage(CONFIG.get_asset_path("circle_FF0000.svg"), 1),
+		target = player_1,
+	))
+
+	cannon = game_state.add_entity(AutoCannon(
+			im = GameImage(CONFIG.get_asset_path("arrow.jpg"), 0.1),
+			proj_im = GameImage(im, 1),
+			proj_speed = 1000,
+			proj_dist = 100,
+			target = player_1,
+	))
+
+	cannon.mvt = enemy.mvt
 
 	while not quitting:
 		for event in pg.event.get():
@@ -53,8 +75,8 @@ def game_loop(surface):
 				quitting = True
 
 		for cannon in cannons:
-			x, y = (cannon.mvt.get_predicted_pos(player_1.mvt, 150) - cannon.get_pos())
-			cannon.mvt.update_angle(atan2(y, x) + uniform(-0.01, 0.01))
+			x, y = (cannon.mvt.get_predicted_pos(player_1.mvt, cannon.projectile_speed) - cannon.get_pos())
+			cannon.mvt.update_angle(atan2(y, x) + 0*uniform(-0.01, 0.01))
 
 		game_state.tick(120)
 

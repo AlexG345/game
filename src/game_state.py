@@ -13,14 +13,30 @@ class GameState:
 		self.window = window
 		self.input = input
 		self.clock = pg.time.Clock()
+		self.time = 0
 		self.camera = Camera(self.input, center = pg.Vector2(self.window.get_size()) / 2)
 		self.entities = []
-		self.collision_handler = CollisionHandler(self.entities)
+
+		cgAlly = CollisionGroup()
+		cgEnemy = CollisionGroup()
+		cgAlly.set_mask({cgEnemy})
+		cgEnemy.set_mask({cgAlly})
+		self.collision_handler = CollisionHandler(
+			{
+				"Ally": cgAlly,
+				"Enemy": cgEnemy,
+			}
+		)
 
 		self.color_bg = pg.Color(0, 0, 0)
 
 		CONFIG.game_state = self
 
+	def set_named_entity(self, ent, name):
+		self.player = ent
+
+	def get_player(self):
+		return self.player
 
 	def add_entity(self, ent):
 		if ent not in self.entities:
@@ -33,6 +49,7 @@ class GameState:
 		self.input.tick()
 
 		dt = self.clock.tick(max_fps)/1000
+		self.time += dt
 
 		for ent in self.entities:
 			ent.tick(dt)
@@ -53,6 +70,4 @@ class GameState:
 		self.window.fill(self.color_bg)
 		for ent in self.entities:
 			ent.draw(self.window, self.camera)
-
-
 

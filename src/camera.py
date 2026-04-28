@@ -54,7 +54,7 @@ class Camera(Entity):
 			pg.math.clamp(10 * dt, 0, 1)
 		)
 
-		if self.target != None:
+		if self.target is not None:
 			self.mvt.update_pos(self.target.get_pos() + self.offset)
 
 		return doZoom
