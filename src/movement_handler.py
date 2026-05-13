@@ -11,6 +11,7 @@ class MovementHandler:
 		self.angle = 0
 		self.velocity_conservation = 0.02
 		self.direction = pg.Vector2(cos(self.angle), sin(self.angle))
+		self.parent = None
 
 		# scalars
 		# self.speed = 250
@@ -46,8 +47,26 @@ class MovementHandler:
 
 	def get_speed(self):
 		return self.velocity.length()
+	
+	# the functions below are VERY unoptimized, everything is recalculated at each call
+	def get_world_pos(self):
+		if self.parent is not None:
+			return self.parent.get_world_pos() + self.pos.rotate_rad(self.parent.get_world_angle())
+		return self.pos # not a copy
+		
+	def get_world_velocity(self):
+		if self.parent is not None:
+			return self.parent.get_world_velocity() + self.velocity.rotate_rad_ip(self.parent.get_world_angle())
+		return self.velocity # not a copy
+	
+	def get_world_angle(self):
+		if self.parent is not None:
+			return self.parent.get_world_angle() + self.angle
+		return self.angle
 
 
+
+	# get the position at which this mvt handler would reach another mvt handler, assuming no acceleration
 	def get_predicted_pos(self, other, reach_speed, base_dist = 0):
 
 		# details on https://docs.google.com/document/d/1soAWMD52LqHPScC6zSZgSGo-leN_NFqEhkB0M1yvOAM/edit?tab=t.0
@@ -55,9 +74,9 @@ class MovementHandler:
 
 		rA0 = base_dist
 		vR = reach_speed # scalar
-		vB = other.velocity
-		pB0 = other.pos
-		pA0 = self.pos
+		vB = other.get_world_velocity()
+		pB0 = other.get_world_pos()
+		pA0 = self.get_world_pos()
 		dPos = pB0 - pA0
 
 		# We solve for the time when a circle growing at the projectile's speed intersects with the target's trajectory.
@@ -71,7 +90,7 @@ class MovementHandler:
 		delta = B * B - 4 * A * C
 
 		if delta < 0:
-			return other.pos
+			return pB0
 
 		root_delta = sqrt(delta)
 
@@ -81,13 +100,13 @@ class MovementHandler:
 		tmax = max(t1, t2)
 
 		if tmax < 0:
-			return other.pos
+			return pB0
 
 		t = tmax
 		if tmin >= 0:
 			t = tmin
 
-		return other.pos + t * other.velocity
+		return pB0 + t * vB
 
 
 	def move(self, direction, max_speed):
@@ -108,16 +127,24 @@ class MovementHandler:
 
 	# 	self.move(direction, dt, speed, rate)
 
+	# does not work properly for parented mvts (except if self and other are parented to the same mvt)
 	def follow(self, other, max_speed, prediction_precision = 1):
+		
 		direction = other.pos.lerp(self.get_predicted_pos(other, max_speed), prediction_precision) - self.pos
+		
+		if direction.x == 0 and direction.y == 0:
+			return
+		
+		direction.normalize_ip()
+		print(direction, max_speed)
 		self.move(direction, max_speed)
 
 
 
 	def tick(self, dt):
-		self.velocity += self.acceleration * dt
-		self.pos += self.velocity * dt
+		self.velocity	+= self.acceleration * dt
+		self.pos		+= self.velocity * dt
 
-		self.velocity *= self.velocity_conservation ** dt
+		self.velocity	*= self.velocity_conservation ** dt
 
 		self.update_acceleration((0, 0))

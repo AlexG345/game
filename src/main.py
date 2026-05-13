@@ -23,14 +23,15 @@ def game_loop(surface):
 	camera		= game_state.camera
 
 	player_1	= Player(
-		pos = (0, 0),
-		im = GameImage(CONFIG.get_asset_path("standing.png")),
-		cg_name = "Ally",
-		input = input
+		pos				= (0, 0),
+		im				= GameImage(CONFIG.get_asset_path("standing.png")),
+		collision_group	= CollisionGroup.ALLY,
+		input			= input,
+		movement_speed	= 1000
 	)
 
 	bg = Entity(
-		(0, 0),
+		pos = (0, 0),
 		im = RepeatingImage(CONFIG.get_asset_path("hexagons.png"), 4)
 	)
 	game_state.add_entity(bg)
@@ -46,28 +47,31 @@ def game_loop(surface):
 	for i in range(0):
 		cannons.append(game_state.add_entity(
 			Cannon(
-				pos = (1000*sin(i/4), 1000*cos(i/4)),
-				im = GameImage(CONFIG.get_asset_path("standing.png")),
-				proj_im = GameImage(im, 1),
-				proj_speed = 1000,
-				proj_dist = 100
+				pos			= (1000*sin(i/4), 1000*cos(i/4)),
+				im			= GameImage(CONFIG.get_asset_path("standing.png")),
+				proj_im		= GameImage(im, 1),
+				proj_speed	= 1000,
+				proj_dist	= 100
 			)
 		))
 
 	enemy = game_state.add_entity(Enemy(
-		im = GameImage(CONFIG.get_asset_path("circle_FF0000.svg"), 1),
-		target = player_1,
+		im				= GameImage(CONFIG.get_asset_path("circle_FF0000.svg"), 1),
+		target			= player_1,
+		movement_speed	= 100,
 	))
+	print(enemy.movement_speed)
 
 	cannon = game_state.add_entity(AutoCannon(
-			im = GameImage(CONFIG.get_asset_path("arrow.jpg"), 0.1),
-			proj_im = GameImage(im, 1),
-			proj_speed = 1000,
-			proj_dist = 100,
-			target = player_1,
+			im			= GameImage(CONFIG.get_asset_path("arrow.jpg"), 0.1),
+			proj_im		= GameImage(im, 1),
+			proj_speed	= 1000,
+			proj_dist	= 100,
+			target		= player_1,
 	))
 
-	cannon.mvt = enemy.mvt
+	cannon.mvt.parent = enemy.mvt
+	cannon.mvt.pos = pg.Vector2(100, 0)
 
 	while not quitting:
 		for event in pg.event.get():

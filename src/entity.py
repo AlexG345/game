@@ -10,44 +10,36 @@ class Entity:
 
 	def __init__(
 		self,
-		pos = pg.Vector2(),
-		radius = 10,
-		im = None,
-		cg_name = None, # collision group name
-		mvt_speed = 250,
+		pos				= pg.Vector2(),
+		radius			= 10,
+		im				= None,
+		collision_group = None, # None or a CollisionGroup enum
+		movement_speed	= 10,
 		**kwargs
 	):
 		self.mvt = MovementHandler()
 		self.mvt.update_pos(pos)
-		self.movement_speed = mvt_speed
-		self.movement_rate = 5
-		self.valid = True
-		self.image = im
-		self.radius = radius
+		self.movement_speed	= movement_speed
+		self.movement_rate	= 5
+		self.valid	= True
+		self.image	= im
+		self.radius	= radius
 
-		self.hitbox = Hitbox(parent = self)
+		self.hitbox	= Hitbox(parent = self)
 
 		self.collision_group = None
-		if cg_name is not None:
-			self.set_collision_group_by_name(cg_name)
+		self.set_collision_group(collision_group)
 
-	def set_collision_group(self, cg):
+	def set_collision_group(self, collision_group: CollisionGroup):
 		self.clear_collision_group()
 
-		if cg is not None:
-			self.collision_group = cg
-			cg.add_entity(self)
-
-	def set_collision_group_by_name(self, cg_name):
-
-		if cg_name is not None:
-			self.set_collision_group(CONFIG.game_state.collision_handler.groups[cg_name])
-		else:
-			self.clear_collision_group()
+		if collision_group is not None:
+			CONFIG.game_state.collision_handler.add_entity(collision_group, self)
+			self.collision_group = collision_group
 
 	def clear_collision_group(self):
 		if self.collision_group is not None:
-			self.collision_group.remove_entity(self)
+			CONFIG.game_state.collision_handler.remove_entity(self.collision_group, self)
 			self.collision_group = None
 
 
@@ -59,7 +51,7 @@ class Entity:
 		self.image.set_image(im)
 
 	def get_pos(self):
-		return self.mvt.pos
+		return self.mvt.get_world_pos()
 
 	def move(self, direction, max_speed = None):
 
@@ -70,7 +62,9 @@ class Entity:
 
 
 	def tick(self, dt):
+		x, y = self.mvt.pos.x, self.mvt.pos.y
 		self.mvt.tick(dt)
+		print(self.__class__, (self.mvt.pos - (x, y)).length()/dt)
 
 	def draw(self, surface, camera):
 		if self.image is not None:
@@ -105,14 +99,13 @@ class Player(Mortal):
 	def __init__(self, input, **kwargs):
 		super().__init__(**kwargs)
 		self.input = input
-		self.movement_speed = 1000
 
 
 	def tick(self, dt):
-		x, y = self.mvt.pos.x, self.mvt.pos.y
-		self.move(self.input.action_values["movement"])
+		
+		self.move(self.input.action_values["movement"]) # action values vector is already normalized
+		
 		super().tick(dt)
-		print((self.mvt.pos - (x, y)).length())
 
 
 class Enemy(Mortal):
@@ -178,19 +171,23 @@ class Cannon(Entity):
 	def tick(self, dt):
 		super().tick(dt)
 
+		angle = self.mvt.get_world_angle()
+
 		self.timeleft -= dt
-		self.image.rotate_image_rad(self.mvt.angle)
+		self.image.rotate_image_rad(angle)
 
 		if self.timeleft <= 0:
 			self.timeleft = self.cooldown
 
+			direction	= pg.Vector2(cos(angle), sin(angle))
+
 			CONFIG.game_state.add_entity(
 				Projectile(
-					pos = self.get_pos() + self.mvt.direction * self.projectile_distance,
-					angle = self.mvt.angle,
-					cg_name = "Enemy",
-					im = GameImage(self.projectile_image),
-					mvt_speed = self.projectile_speed,
+					pos				= self.get_pos() + direction * self.projectile_distance,
+					angle			= angle,
+					collision_group	= CollisionGroup.ENEMY,
+					im				= GameImage(self.projectile_image),
+					movement_speed	= self.projectile_speed,
 				)
 			)
 
