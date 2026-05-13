@@ -22,29 +22,78 @@ class CollisionRule():
 	def remove_entity(self, entity):
 		self.entities.remove(entity)
 
+	def test_collisions(self, other):
+
+		collide1 = self.mask & other.layer # first group initiates collision
+		collide2 = other.mask & self.layer # second group initiates collision
+
+		if not ( collide1 or collide2 ):
+			return
+
+		for ent1 in self.entities:
+			for ent2 in other.entities:
+
+				if ent1 is ent2:
+					continue
+
+				if ent1.hitbox.collide(ent2.hitbox):
+					ent1.health.change(-1)
+					ent2.health.change(-1)
+
 
 class CollisionHandler():
 
 	def __init__(self):
-		self.rules = {}
+		self.groups = {}
 
-	def associate_rule(self, cg: CollisionGroup, cr: CollisionRule):
-		self.rules[cg] = cr
+	def create_group(self, cg: CollisionGroup, cr: CollisionRule):
+		self.groups[cg] = {
+			"entities": set(),
+			"rule": cr
+		}
+
+	def add_entity(self, cg: CollisionGroup, ent):
+		self.groups[cg].entities.add(ent)
+
+	def remove_entity(self, cg: CollisionGroup, ent):
+		self.groups[cg].entities.remove(ent)
+
+	def test_collisions(self, cg1, cg2):
+
+		rule1 = self.groups[cg1].rule
+		rule1 = self.groups[cg2].rule
+
+		collide1 = self.mask & other.layer # first group initiates collision
+		collide2 = other.mask & self.layer # second group initiates collision
+
+		if not ( collide1 or collide2 ):
+			return
+
+		for ent1 in self.entities:
+			for ent2 in other.entities:
+
+				if ent1 is ent2:
+					continue
+
+				if ent1.hitbox.collide(ent2.hitbox):
+					ent1.health.change(-1)
+					ent2.health.change(-1)
+
+
+	def test_collisions(self):
+
+		num_groups = len(self.groups)
+
+		for i in range(num_groups):
+			for j in range(i, num_groups):
+
+				self.rules[i].test_collisions(self.groups[j])
+
+
 
 	def tick(self):
+		self.test_collisions()
 
-		num_rules = len(self.rules)
-
-		for i in range(num_rules):
-			for j in range(i, num_rules):
-				rule1 = self.rules[i]
-				rule2 = self.rules[j]
-
-				if rule1.mask & rule2.layer:
-					pass
-
-				if rule2.mask & rule1.layer:
-					pass
 
 class Hitbox():
 
@@ -58,5 +107,5 @@ class Hitbox():
 	def get_radius(self):
 		return self.parent.radius
 
-	def collide(self, hitbox):
-		return math2.circle_to_circle_2p(self.get_pos(), self.get_radius(), hitbox.get_pos(), hitbox.get_radius())
+	def collide(self, other):
+		return math2.circle_to_circle_2p(self.get_pos(), self.get_radius(), other.get_pos(), other.get_radius())

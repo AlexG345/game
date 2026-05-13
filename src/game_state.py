@@ -17,15 +17,19 @@ class GameState:
 		self.camera = Camera(self.input, center = pg.Vector2(self.window.get_size()) / 2)
 		self.entities = []
 
-		cgAlly = CollisionGroup()
+		AllyRule = CollisionGroup(cgEnemy)
 		cgEnemy = CollisionGroup()
 		cgAlly.set_mask({cgEnemy})
 		cgEnemy.set_mask({cgAlly})
-		self.collision_handler = CollisionHandler(
-			{
-				"Ally": cgAlly,
-				"Enemy": cgEnemy,
-			}
+		self.collision_handler = CollisionHandler()
+		self.collision_handler.associate_rule(
+			CollisionGroup.PLAYER,
+			CollisionRule(CollisionRule.ENEMY)
+		)
+
+		self.collision_handler.associate_rule(
+			CollisionGroup.ENEMY,
+			CollisionRule(CollisionRule.PLAYER)
 		)
 
 		self.color_bg = pg.Color(0, 0, 0)
