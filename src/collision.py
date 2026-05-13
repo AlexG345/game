@@ -5,18 +5,7 @@ class CollisionGroup(IntFlag):
     ALLY	= auto()	# 1
     ENEMY	= auto()	# 2
 
-
-# Contains a collision mask representing which collision groups this can initiate a collision with
-# Contains entities that follow this collision rule (= that can collide with the groups from the mask)
-class CollisionRule():
-
-	def __init__(self, *mask_cgs):
-
-		self.mask = 0
-		for mask_cg in mask_cgs:
-			mask |= mask_cg
-
-
+	
 class CollisionHandler():
 
 	def __init__(self):
