@@ -15,6 +15,7 @@ class Entity:
 		im				= None,
 		collision_group = None, # None or a CollisionGroup enum
 		movement_speed	= 10,
+		turn_speed		= 20,
 		**kwargs
 	):
 		self.mvt = MovementHandler()
@@ -24,6 +25,7 @@ class Entity:
 		self.valid	= True
 		self.image	= im
 		self.radius	= radius
+		self.turn_speed = turn_speed
 
 		self.hitbox	= Hitbox(parent = self)
 
@@ -53,6 +55,9 @@ class Entity:
 	def get_pos(self):
 		return self.mvt.get_world_pos()
 
+	def get_angle(self):
+		return self.mvt.get_world_angle()
+
 	def move(self, direction, max_speed = None):
 
 		if max_speed is None:
@@ -64,10 +69,13 @@ class Entity:
 	def tick(self, dt):
 		x, y = self.mvt.pos.x, self.mvt.pos.y
 		self.mvt.tick(dt)
-		print(self.__class__, (self.mvt.pos - (x, y)).length()/dt)
+		if self.__class__ != Projectile:
+			print(self.__class__, (self.mvt.pos - (x, y)).length()/dt)
 
 	def draw(self, surface, camera):
 		if self.image is not None:
+			if hasattr( self.image, "rotate_image_rad" ):
+				self.image.rotate_image_rad(self.get_angle())
 			self.image.draw(surface, self.get_pos(), camera)
 
 
@@ -85,8 +93,9 @@ class Mortal(Entity):
 		if self.show_health:
 			pos = self.get_pos()
 			x, y = pos.x, pos.y
-			y -= self.radius * 1.5
-			self.health.draw(surface, camera, x, y)
+			y += self.radius * 1.6
+			width = self.radius * 1.2
+			self.health.draw(surface, camera, x, y, width)
 
 	def tick(self, dt):
 		super().tick(dt)
@@ -102,16 +111,21 @@ class Player(Mortal):
 
 
 	def tick(self, dt):
-		
+
 		self.move(self.input.action_values["movement"]) # action values vector is already normalized
-		
+		self.mvt.turn_towards_pos(CONFIG.game_state.camera.mouse_pos, self.turn_speed, dt)
+
 		super().tick(dt)
 
 
-class Enemy(Mortal):
+class Smart(Mortal):
 
 	# set target to None to stop targetting
-	def __init__(self, target = None, **kwargs):
+	def __init__(
+		self,
+		target = None,
+		**kwargs
+	):
 		super().__init__(**kwargs)
 		self.target = target
 
@@ -124,16 +138,27 @@ class Enemy(Mortal):
 		if self.target is not None:
 			self.mvt.follow(self.target.mvt, self.movement_speed)
 
+	def turn_towards_target(self, dt):
+		# TODO: replace this with predicted angle stuff from AutoCannon, remove the move and turn stuff from tick, might want to save predicted pos instead, idk
+		self.mvt.turn_towards_pos(self.target.get_pos(), self.turn_speed, dt)
+
 
 	def tick(self, dt):
-		self.move_towards_target(dt)
+		#self.move_towards_target(dt)
+		self.turn_towards_target(dt)
+		self.mvt.move_forwards(self.movement_speed)
 		super().tick(dt)
 
 
 
 class Projectile(Mortal):
 
-	def __init__(self, angle = 0, lifetime = 3, **kwargs):
+	def __init__(
+			self,
+			angle = 0,
+			lifetime = 3,
+			**kwargs
+		):
 		super().__init__(**kwargs)
 
 		self.health.current = 1
@@ -151,7 +176,6 @@ class Projectile(Mortal):
 		super().tick(dt)
 
 		self.timeleft -= dt
-		self.image.rotate_image_rad(self.mvt.angle)
 
 		if self.timeleft <= 0:
 			self.die()
@@ -159,24 +183,32 @@ class Projectile(Mortal):
 
 class Cannon(Entity):
 
-	def __init__(self, proj_im = None, proj_speed = 50, proj_dist = 0, **kwargs):
+	def __init__(
+			self,
+			proj_im		= None,
+			proj_speed	= 50,
+			proj_dist	= 0,
+			cooldown	= 0.1,
+			**kwargs
+		):
 		super().__init__(**kwargs)
 		self.projectile_distance = proj_dist
 		self.projectile_image = proj_im
 		self.projectile_speed = proj_speed
 
-		self.cooldown = 0.01
-		self.timeleft = self.cooldown
+		self.cooldown	= cooldown
+		self.timeleft	= self.cooldown
+		self.enable_shooting	= True
 
 	def tick(self, dt):
 		super().tick(dt)
 
-		angle = self.mvt.get_world_angle()
+		angle = self.get_angle()
 
 		self.timeleft -= dt
 		self.image.rotate_image_rad(angle)
 
-		if self.timeleft <= 0:
+		if self.enable_shooting and self.timeleft <= 0:
 			self.timeleft = self.cooldown
 
 			direction	= pg.Vector2(cos(angle), sin(angle))
@@ -194,13 +226,24 @@ class Cannon(Entity):
 
 class AutoCannon(Cannon):
 
-	def __init__(self, target = None, **kwargs):
+	def __init__(
+			self,
+			target = None,
+			**kwargs
+		):
 		super().__init__(**kwargs)
-		self.target = target
+		self.target		= target
 
 	def tick(self, dt):
-		if self.target is not None:
-			x, y = (self.mvt.get_predicted_pos(self.target.mvt, self.projectile_speed) - self.get_pos())
-			self.mvt.turn_towards_angle(atan2(y, x), 1, dt)
+
+		self.enable_shooting = self.target is not None
+
+		if self.enable_shooting:
+			predicted_pos, self.enable_shooting = self.mvt.get_predicted_pos(self.target.mvt, self.projectile_speed)
+			angle_to_target = self.mvt.turn_towards_pos(predicted_pos, self.turn_speed, dt)
+			print("angular disease -_-:",angle_to_target - self.get_angle())
+			# about 10 degrees range
+			if abs(angle_to_target - self.get_angle()) > 0.175:
+				self.enable_shooting = False
 		#self.mvt.update_angle(atan2(y, x))#"+ uniform(-0.01, 0.01))
 		super().tick(dt)

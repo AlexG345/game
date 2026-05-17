@@ -22,65 +22,77 @@ def game_loop(surface):
 	game_state	= GameState(surface, input)
 	camera		= game_state.camera
 
-	player_1	= Player(
-		pos				= (0, 0),
-		im				= GameImage(CONFIG.get_asset_path("standing.png")),
-		collision_group	= CollisionGroup.ALLY,
-		input			= input,
-		movement_speed	= 1000
-	)
-
 	bg = Entity(
 		pos = (0, 0),
 		im = RepeatingImage(CONFIG.get_asset_path("hexagons.png"), 4)
 	)
 	game_state.add_entity(bg)
 
-	camera.target = player_1
+	im = pg.transform.scale(pg.image.load(CONFIG.get_asset_path("Joueur/zeus_corps_dessus.png")), (100, 100))
+	im = pg.transform.rotate(im, 180)
+	player	= Player(
+		pos				= (0, 0),
+		im				= GameImage(im),
+		collision_group	= CollisionGroup.ALLY,
+		input			= input,
+		movement_speed	= 600,
+		radius			= 40,
+	)
+	game_state.add_entity(player)
 
-	game_state.add_entity(player_1)
+	camera.target = player
 
+	im = pg.transform.scale(pg.image.load(CONFIG.get_asset_path("monstres/hydre/hydre_corps.png")), (100, 100))
 
-	im = pg.transform.scale(pg.image.load(CONFIG.get_asset_path("laser.png")), (100, 20))
-
-	cannons = []
-	for i in range(0):
-		cannons.append(game_state.add_entity(
-			Cannon(
-				pos			= (1000*sin(i/4), 1000*cos(i/4)),
-				im			= GameImage(CONFIG.get_asset_path("standing.png")),
-				proj_im		= GameImage(im, 1),
-				proj_speed	= 1000,
-				proj_dist	= 100
-			)
-		))
-
-	enemy = game_state.add_entity(Enemy(
-		im				= GameImage(CONFIG.get_asset_path("circle_FF0000.svg"), 1),
-		target			= player_1,
-		movement_speed	= 100,
+	enemy = game_state.add_entity(Smart(
+		im				= GameImage(im, 5),
+		target			= player,
+		movement_speed	= 200,
+		turn_speed		= 0.5,
 	))
 	print(enemy.movement_speed)
 
-	cannon = game_state.add_entity(AutoCannon(
-			im			= GameImage(CONFIG.get_asset_path("arrow.jpg"), 0.1),
-			proj_im		= GameImage(im, 1),
-			proj_speed	= 1000,
-			proj_dist	= 100,
-			target		= player_1,
-	))
+	im				= pg.transform.scale(pg.image.load(CONFIG.get_asset_path("monstres/hydre/hydre_tete.png")), (100, 100))
+	neck_segment_im	= pg.transform.scale(pg.image.load(CONFIG.get_asset_path("monstres/hydre/hydre_cou.png")), (100, 100))
+	proj_im			= pg.transform.scale(pg.image.load(CONFIG.get_asset_path("laser.png")), (100, 20))
 
-	cannon.mvt.parent = enemy.mvt
-	cannon.mvt.pos = pg.Vector2(100, 0)
+	# IDEA: function to "heal" a neck segment until it regrows a head
+	# to spawn the hydra just heal its segments
+	# then have a cooldown that heals the segments while the hydra is alive?
+	# + add smooth turn
+	for i in range(-1, 2):
+		root = enemy
+		dx, dy = 200, 100 * i
+		for j in range(1, 8):
+			neck = game_state.add_entity(AutoCannon(
+				pos			= (dx, dy),
+				im			= GameImage(neck_segment_im, 2.5),
+				target		= player,
+				cooldown	= 1000000,
+				turn_speed	= 0.1 * j,
+			))
+			neck.mvt.max_angle_amplitude = 0.5
+			dx, dy = 80, 0
+			neck.mvt.parent = root.mvt
+			root = neck
+
+		cannon = game_state.add_entity(AutoCannon(
+				pos			= (dx, 0),
+				im			= GameImage(im, 2.5),
+				proj_im		= GameImage(proj_im),
+				proj_speed	= 1000,
+				proj_dist	= 100,
+				target		= player,
+				cooldown	= 0.2,
+				turn_speed	= 8,
+		))
+		cannon.mvt.max_angle_amplitude = 0.4
+		cannon.mvt.parent = root.mvt
 
 	while not quitting:
 		for event in pg.event.get():
 			if event.type == pg.QUIT:
 				quitting = True
-
-		for cannon in cannons:
-			x, y = (cannon.mvt.get_predicted_pos(player_1.mvt, cannon.projectile_speed) - cannon.get_pos())
-			cannon.mvt.update_angle(atan2(y, x) + 0*uniform(-0.01, 0.01))
 
 		game_state.tick(120)
 
@@ -96,7 +108,7 @@ if __name__ == "__main__":
 	pg.init()
 
 	# création de la fenêtre du jeu
-	window = pg.display.set_mode(size=(800, 500))
+	window = pg.display.set_mode(size=(1920, 1080))
 
 	# nom de la fenêtre
 	pg.display.set_caption("Premier jeu")

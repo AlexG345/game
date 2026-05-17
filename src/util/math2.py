@@ -1,3 +1,5 @@
+from math import pi
+
 def point_to_circle(x1, y1, x2, y2, r):
 	return (x1 - x2) ** 2 + (y1 - y2) ** 2 < r * r
 
@@ -6,3 +8,9 @@ def circle_to_circle(x1, y1, r1, x2, y2, r2):
 
 def circle_to_circle_2p(p1, r1, p2, r2):
 	return circle_to_circle(p1.x, p1.y, r1, p2.x, p2.y, r2)
+
+def simplify_angle(angle):
+	return (angle + pi) % (2 * pi) - pi
+
+def clamp(value, minimum, maximum):
+	return min(max(minimum, value), maximum)

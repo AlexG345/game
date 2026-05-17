@@ -1,5 +1,6 @@
 import pygame as pg
 from math import *
+from util import math2
 
 class MovementHandler:
 
@@ -12,6 +13,7 @@ class MovementHandler:
 		self.velocity_conservation = 0.02
 		self.direction = pg.Vector2(cos(self.angle), sin(self.angle))
 		self.parent = None
+		self.max_angle_amplitude = pi
 
 		# scalars
 		# self.speed = 250
@@ -33,32 +35,39 @@ class MovementHandler:
 		self.acceleration.update(*args)
 
 	def update_angle(self, angle):
+		angle = math2.clamp( math2.simplify_angle(angle), -self.max_angle_amplitude, self.max_angle_amplitude )
 		if angle != self.angle:
 			self.angle = angle
 			self.direction.update(cos(self.angle), sin(self.angle))
 
 	def turn_towards_angle(self, angle, angular_velocity, dt):
-		ang = ((angle - self.angle) + pi) % (2 * pi) - pi
-		d_ang = angular_velocity * dt * ((ang > 0) - (ang < 0))
-		if abs(d_ang) > abs(ang):
-			self.update_angle(angle)
+		angle_to = math2.simplify_angle(angle - self.get_world_angle())
+		d_ang = angular_velocity * dt * ((angle_to > 0) - (angle_to < 0))
+		if abs(d_ang) > abs(angle_to):
+			self.update_angle(self.angle + angle_to)
 		else:
 			self.update_angle(self.angle + d_ang)
 
+	def turn_towards_pos(self, pos, angular_velocity, dt):
+		x, y = pos - self.get_world_pos()
+		angle = atan2(y, x)
+		self.turn_towards_angle(angle, angular_velocity, dt)
+		return angle
+
 	def get_speed(self):
 		return self.velocity.length()
-	
+
 	# the functions below are VERY unoptimized, everything is recalculated at each call
 	def get_world_pos(self):
 		if self.parent is not None:
 			return self.parent.get_world_pos() + self.pos.rotate_rad(self.parent.get_world_angle())
 		return self.pos # not a copy
-		
+
 	def get_world_velocity(self):
 		if self.parent is not None:
 			return self.parent.get_world_velocity() + self.velocity.rotate_rad_ip(self.parent.get_world_angle())
 		return self.velocity # not a copy
-	
+
 	def get_world_angle(self):
 		if self.parent is not None:
 			return self.parent.get_world_angle() + self.angle
@@ -67,6 +76,16 @@ class MovementHandler:
 
 
 	# get the position at which this mvt handler would reach another mvt handler, assuming no acceleration
+	"""
+	Arguments:
+		other (MovementHandler): The tracked movement handler
+		reach_speed (number): The speed at which we're trying to reach the tracked movement handler
+		base_dist (number): The distance to the tracked movement handler that has already been crossed (useful for projectiles: they're shot farther away than the center of the cannon)
+
+	Returns:
+		(pg.Vector2): The position at which the tracked movement handler will be intercepted, or a fallback position if it's impossible to do so
+		(boolean): True if the tracked movement handler can be intercepted
+	"""
 	def get_predicted_pos(self, other, reach_speed, base_dist = 0):
 
 		# details on https://docs.google.com/document/d/1soAWMD52LqHPScC6zSZgSGo-leN_NFqEhkB0M1yvOAM/edit?tab=t.0
@@ -90,7 +109,7 @@ class MovementHandler:
 		delta = B * B - 4 * A * C
 
 		if delta < 0:
-			return pB0
+			return pB0, False
 
 		root_delta = sqrt(delta)
 
@@ -100,41 +119,29 @@ class MovementHandler:
 		tmax = max(t1, t2)
 
 		if tmax < 0:
-			return pB0
+			return pB0, False
 
 		t = tmax
 		if tmin >= 0:
 			t = tmin
 
-		return pB0 + t * vB
+		return pB0 + t * vB, True
 
 
 	def move(self, direction, max_speed):
-
 		self.acceleration = direction * max_speed * -log(self.velocity_conservation)
 
-	# def move(self, direction, dt=1, speed = 0, rate = 1):
-
-	# 	if direction.x != 0 or direction.y != 0:
-	# 		direction = direction.normalize()
-
-	# 	self.velocity = self.velocity.lerp(direction * speed, pg.math.clamp(rate * dt, 0, 1))
-
-
-	# def follow(self, other, dt, speed, rate = 1, precision=1):
-
-	# 	direction = other.pos.lerp(self.get_predicted_pos(other, speed), precision) - self.pos
-
-	# 	self.move(direction, dt, speed, rate)
+	def move_forwards(self, max_speed):
+		self.move(self.direction, max_speed)
 
 	# does not work properly for parented mvts (except if self and other are parented to the same mvt)
 	def follow(self, other, max_speed, prediction_precision = 1):
-		
-		direction = other.pos.lerp(self.get_predicted_pos(other, max_speed), prediction_precision) - self.pos
-		
+
+		direction = other.pos.lerp(self.get_predicted_pos(other, max_speed)[0], prediction_precision) - self.pos
+
 		if direction.x == 0 and direction.y == 0:
 			return
-		
+
 		direction.normalize_ip()
 		print(direction, max_speed)
 		self.move(direction, max_speed)

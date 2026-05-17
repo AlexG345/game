@@ -8,7 +8,7 @@ class Camera(Entity):
 	def __init__(self,
 		input,
 		pos = pg.Vector2(),
-		zoom = 1,
+		zoom = 0.5,
 		center = pg.Vector2(),
 		target = None
 	):
@@ -19,6 +19,7 @@ class Camera(Entity):
 		self.center = center
 		self.target = target
 		self.offset = pg.Vector2()
+		self.mouse_pos = pg.Vector2()
 
 
 	def smooth_zoom(self, mul, dt):
@@ -42,15 +43,18 @@ class Camera(Entity):
 
 
 	def tick(self, dt):
+
 		zoomAmount = self.input.action_values["zoom"]
 
 		doZoom = zoomAmount != 0
 		if doZoom:
 			self.smooth_zoom(zoomAmount, dt)
 
+		self.mouse_pos = self.to_world_pos(pg.mouse.get_pos())
+
 		self.offset = self.offset.lerp(
 			# TODO: make mouse pos normalized relative to screen size
-			(self.to_world_pos(pg.mouse.get_pos()) - self.get_pos()) * 0.2,
+			(self.mouse_pos - self.get_pos()) * 0.2,
 			pg.math.clamp(10 * dt, 0, 1)
 		)
 

@@ -29,13 +29,13 @@ class Ressource:
 	def set_relative(self, rel):
 		self.current = rel * self.max
 
-	def draw(self, surface, camera, x, y):
+	def draw(self, surface, camera, x, y, width=10):
 
 		relative = self.get_relative_clamped()
 
 		mp = camera.to_scr_pos((x, y))
-		w = camera.to_scr_size(50)
-		h = round(camera.to_scr_size(10))
+		w = camera.to_scr_size(width)
+		h = 10#round(camera.to_scr_size(10))
 		y = mp.y + h/2
 		x1 = mp.x - w/2
 		x2 = x1 + relative * w
