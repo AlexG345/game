@@ -3,22 +3,21 @@ from math import *
 
 class GameImage:
 
-	def __init__(self, im, base_scale = 1):
+	def __init__(self, image, base_scale = 1):
 		self.angle = 0
 		self.base_scale = base_scale
 		self.scale = base_scale
-		self.set_image(im)
+		self.set_image(image)
 
-	# TODO: add missing texture if im is None?
-	def set_image(self, im = None):
+	def set_image(self, image = None):
 
-		if isinstance(im, GameImage):
-			self.image = im.image.copy()
-			self.base_scale = im.base_scale
-		elif isinstance(im, pg.surface.Surface):
-			self.image = im.copy()
+		if isinstance(image, GameImage) or isinstance(image, RepeatingImage):
+			self.image = image.image.copy()
+			self.base_scale = image.base_scale
+		elif isinstance(image, pg.surface.Surface):
+			self.image = image.copy()
 		else:
-			self.image = pg.image.load(im)
+			self.image = pg.image.load(image)
 
 		self.image = self.image.convert_alpha()
 		self.image_scaled = self.image.copy().convert_alpha()
@@ -67,15 +66,15 @@ class GameImage:
 
 class RepeatingImage:
 
-	def __init__(self, im, base_scale = 1):
+	def __init__(self, image, base_scale = 1):
 
-		self.image = pg.image.load(im).convert_alpha()
+		self.image			= pg.image.load(image).convert_alpha()
 
-		self.base_scale = base_scale
-		self.image_scaled = pg.transform.scale_by(self.image, self.base_scale)
+		self.base_scale		= base_scale
+		self.image_scaled	= pg.transform.scale_by(self.image, self.base_scale)
 
-		self.repeat = pg.Vector2(10, 10)
-		self.center = pg.Vector2()
+		self.repeat			= pg.Vector2(10, 10)
+		self.center			= pg.Vector2()
 
 		self.update_center()
 
@@ -87,9 +86,9 @@ class RepeatingImage:
 		self.center = self.get_size() / 2
 
 	def get_size(self):
-		size = pg.Vector2(self.image_scaled.get_size())
-		size.x *= self.repeat.x
-		size.y *= self.repeat.y
+		size	= pg.Vector2(self.image_scaled.get_size())
+		size.x	*= self.repeat.x
+		size.y	*= self.repeat.y
 		return size
 
 	def draw(self, surface, pos, camera):

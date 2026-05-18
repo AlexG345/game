@@ -24,15 +24,15 @@ def game_loop(surface):
 
 	bg = Entity(
 		pos = (0, 0),
-		im = RepeatingImage(CONFIG.get_asset_path("hexagons.png"), 4)
+		image = RepeatingImage(CONFIG.get_asset_path("background_grass.jpg"), 2)
 	)
 	game_state.add_entity(bg)
 
-	im = pg.transform.scale(pg.image.load(CONFIG.get_asset_path("Joueur/zeus_corps_dessus.png")), (100, 100))
-	im = pg.transform.rotate(im, 180)
+	image = pg.transform.scale(pg.image.load(CONFIG.get_asset_path("Joueur/zeus_corps_dessus.png")), (100, 100))
+	image = pg.transform.rotate(image, 180)
 	player	= Player(
 		pos				= (0, 0),
-		im				= GameImage(im),
+		image			= GameImage(image),
 		collision_group	= CollisionGroup.ALLY,
 		input			= input,
 		movement_speed	= 600,
@@ -42,11 +42,11 @@ def game_loop(surface):
 
 	camera.target = player
 
-	im = pg.transform.scale(pg.image.load(CONFIG.get_asset_path("monstres/hydre/hydre_corps.png")), (100, 100))
-	im = pg.transform.rotate(im, 180)
+	image = pg.transform.scale(pg.image.load(CONFIG.get_asset_path("monstres/hydre/hydre_corps.png")), (100, 100))
+	image = pg.transform.rotate(image, 180)
 
 	enemy = game_state.add_entity(Smart(
-		im				= GameImage(im, 5),
+		image			= GameImage(image, 5),
 		collision_group = CollisionGroup.ENEMY,
 		target			= player,
 		movement_speed	= 500,
@@ -56,46 +56,72 @@ def game_loop(surface):
 	print(enemy.movement_speed)
 	enemy.mvt.set_friction(1)
 
-	im				= pg.transform.scale(pg.image.load(CONFIG.get_asset_path("monstres/hydre/hydre_tete.png")), (100, 100))
-	neck_segment_im	= pg.transform.scale(pg.image.load(CONFIG.get_asset_path("monstres/hydre/hydre_cou.png")), (100, 100))
-	proj_im			= pg.transform.scale(pg.image.load(CONFIG.get_asset_path("laser.png")), (100, 100))
+	image				= pg.transform.scale(pg.image.load(CONFIG.get_asset_path("monstres/hydre/hydre_tete.png")), (100, 100))
+	tail_segment_image	= pg.transform.scale(pg.image.load(CONFIG.get_asset_path("monstres/hydre/hydre_segment_queue.png")), (100, 100))
+	seg_segment_image	= pg.transform.scale(pg.image.load(CONFIG.get_asset_path("monstres/hydre/hydre_cou.png")), (100, 100))
+	proj_image			= pg.transform.scale(pg.image.load(CONFIG.get_asset_path("laser.png")), (100, 100))
 
-	# IDEA: function to "heal" a neck segment until it regrows a head
+	# IDEA: function to "heal" a seg segment until it regrows a head
 	# to spawn the hydra just heal its segments
 	# then have a cooldown that heals the segments while the hydra is alive?
 	# + add smooth turn
+
+	for i in range(2):
+		root = enemy
+		t = (2 * i - 1)
+		dx, dy = -200, 40 * t
+		base_angle = t * pi / 6
+		for j in range(1, 6):
+			seg = game_state.add_entity(AutoCannon(
+				pos				= (dx, dy),
+				image			= GameImage(seg_segment_image, 3 - 0.2 * j),
+				target			= player,
+				spawn_cooldown	= inf,
+				turn_speed		= 0.1 * j,
+				parent			= root
+			))
+			seg.mvt.parent = root.mvt
+			seg.mvt.max_angle_amplitude = 0.15 + 0.2 * j
+			seg.mvt.base_angle = base_angle
+
+			root = seg
+			dx, dy = -80, 0
+			base_angle = 0	
+
 	for i in range(-2, 3):
 		root = enemy
 		dx, dy = 200, 50 * i
 		base_angle = i * pi/4
 		for j in range(1, 7 - abs(i)):
-			neck = game_state.add_entity(AutoCannon(
+			seg = game_state.add_entity(AutoCannon(
 				pos				= (dx, dy),
-				im				= GameImage(neck_segment_im, 3),
+				image			= GameImage(seg_segment_image, 3),
 				target			= player,
-				cooldown		= 1000000,
+				spawn_cooldown	= inf,
 				turn_speed		= 0.1 * j,
 				parent			= root
 			))
-			neck.mvt.parent = root.mvt
-			neck.mvt.max_angle_amplitude = 0.15 + 0.2 * abs(i)
-			neck.mvt.base_angle = base_angle
+			seg.mvt.parent = root.mvt
+			seg.mvt.max_angle_amplitude = 0.15 + 0.2 * abs(i)
+			seg.mvt.base_angle = base_angle
 
-			root = neck
-			dx, dy = 80, 0
-			base_angle = 0
+			root		= seg
+			dx, dy		= 80, 0
+			base_angle	= 0
 
 		cannon = game_state.add_entity(AutoCannon(
 				pos				= (dx, 0),
-				im				= GameImage(im, 2.5),
-				proj_dist		= 100,
-				proj_kwargs		= {
-					"image"			: GameImage(proj_im),
-					"movement_speed": 500,
-					"lifetime"		: 100,
+				image			= GameImage(image, 2.5),
+				spawn_distance	= 100,
+				spawn_kwargs	= {
+					"image"				: GameImage(proj_image),
+					"movement_speed"	: 600,
+					"lifetime"			: 1,
+					"collision_group"	: CollisionGroup.WEAPON_ENEMY,
 				},
+			
 				target			= player,
-				cooldown		= 0.1,
+				spawn_cooldown	= 0.2,
 				turn_speed		= 8,
 				parent			= root
 		))

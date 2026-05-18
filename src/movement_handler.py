@@ -6,15 +6,19 @@ class MovementHandler:
 
 	def __init__(self):
 		# vectors
-		self.pos = pg.Vector2()
-		self.velocity = pg.Vector2()
-		self.acceleration = pg.Vector2()
-		self.angle = 0
-		self.velocity_conservation = 0.02
-		self.direction = pg.Vector2(cos(self.angle), sin(self.angle))
-		self.parent = None
-		self.max_angle_amplitude = pi
-		self.base_angle	= 0
+		self.pos					= pg.Vector2()
+		self.velocity				= pg.Vector2()
+		self.acceleration			= pg.Vector2()
+
+		self.velocity_conservation	= 0.02
+
+		self.angle					= 0
+		self.base_angle				= 0
+		self.max_angle_amplitude	= pi # centered around base_angle
+		self.angular_velocity		= 0
+		self.direction				= pg.Vector2(cos(self.angle), sin(self.angle))
+
+		self.parent					= None
 
 		# scalars
 		# self.speed = 250
@@ -46,12 +50,13 @@ class MovementHandler:
 			self.direction.update(cos(self.angle), sin(self.angle))
 
 	def turn_towards_angle(self, angle, angular_velocity, dt):
-		angle_to = math2.simplify_angle(angle - self.get_world_angle())
-		d_ang = angular_velocity * dt * ((angle_to > 0) - (angle_to < 0))
-		if abs(d_ang) > abs(angle_to):
-			self.update_angle(self.angle + angle_to)
+		angle_to			= math2.simplify_angle(angle - self.get_world_angle())
+		angular_velocity	*= ((angle_to > 0) - (angle_to < 0))
+		
+		if abs(angle_to) > abs(angular_velocity * dt):
+			self.angular_velocity = angular_velocity
 		else:
-			self.update_angle(self.angle + d_ang)
+			self.angular_velocity = angle_to / dt
 
 	def turn_towards_pos(self, pos, angular_velocity, dt):
 		x, y = pos - self.get_world_pos()
@@ -158,5 +163,6 @@ class MovementHandler:
 		self.pos		+= self.velocity * dt
 
 		self.velocity	*= self.velocity_conservation ** dt
-
+		
+		self.update_angle(self.angle + self.angular_velocity * dt)
 		self.update_acceleration((0, 0))

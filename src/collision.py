@@ -2,8 +2,11 @@ from enum import IntFlag, auto
 from util import math2
 
 class CollisionGroup(IntFlag):
-    ALLY	= auto()	# 1
-    ENEMY	= auto()	# 2
+	ALLY			= auto()	# 1
+	ENEMY			= auto()	# 2
+	WEAPON_ALLY		= auto()	# 4
+	WEAPON_ENEMY	= auto()	# 8
+	
 
 	
 class CollisionHandler():
@@ -54,8 +57,8 @@ class CollisionHandler():
 					continue
 
 				if ent1.hitbox.collide(ent2.hitbox):
-					ent1.health.change(-1)
-					ent2.health.change(-1)
+					ent1.health.change(-0.1)
+					ent2.health.change(-0.1)
 
 
 	def test_all_collisions(self):

@@ -10,22 +10,34 @@ class GameState:
 			input,
 		):
 
-		self.window = window
-		self.input = input
-		self.clock = pg.time.Clock()
-		self.time = 0
-		self.camera = Camera(self.input, center = pg.Vector2(self.window.get_size()) / 2)
-		self.entities = []
+		self.window		= window
+		self.input		= input
+		self.clock		= pg.time.Clock()
+		self.time		= 0
+		self.camera		= Camera(self.input, center = pg.Vector2(self.window.get_size()) / 2)
+		self.entities	= []
 
 		self.collision_handler = CollisionHandler()
 
 		self.collision_handler.create_data(
 			CollisionGroup.ALLY,
-			CollisionGroup.ENEMY # the mask (can add more groups after)
+			CollisionGroup.ENEMY, # the mask from here on
+			CollisionGroup.WEAPON_ENEMY
 		)
 
 		self.collision_handler.create_data(
 			CollisionGroup.ENEMY,
+			CollisionGroup.ALLY,
+			CollisionGroup.WEAPON_ALLY
+		)
+
+		self.collision_handler.create_data(
+			CollisionGroup.WEAPON_ALLY,
+			CollisionGroup.ENEMY
+		)
+
+		self.collision_handler.create_data(
+			CollisionGroup.WEAPON_ENEMY,
 			CollisionGroup.ALLY
 		)
 

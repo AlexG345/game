@@ -13,22 +13,23 @@ class Entity:
 		self,
 		pos				= pg.Vector2(),
 		radius			= 10,
-		im				= None,
+		image			= None,
 		collision_group = None, # None or a CollisionGroup enum
 		movement_speed	= 10,
 		turn_speed		= 20,
 		parent			= None,
 		**kwargs
 	):
+		print(movement_speed)
 		self.mvt = MovementHandler()
 		self.mvt.update_pos(pos)
 		self.movement_speed	= movement_speed
 		self.movement_rate	= 5
-		self.valid	= True
-		if im is not None and not isinstance(im, GameImage):
-			im = GameImage(im)
-		self.image = im
-		self.radius	= radius
+		self.valid		= True
+		if image is not None and not hasattr(image, "image"):
+			image = GameImage(image)
+		self.image		= image
+		self.radius		= radius
 		self.turn_speed = turn_speed
 		self.children	= set()
 		self.parent		= parent
@@ -59,8 +60,8 @@ class Entity:
 			ent.die()
 		self.valid = False
 
-	def set_image(self, im):
-		self.image.set_image(im)
+	def set_image(self, image):
+		self.image.set_image(image)
 
 	def get_pos(self):
 		return self.mvt.get_world_pos()
@@ -119,19 +120,21 @@ class Player(Mortal):
 		super().__init__(**kwargs)
 		self.input = input
 
-		im		= pg.transform.scale(pg.image.load(CONFIG.get_asset_path("monstres/hydre/hydre_tete.png")), (100, 100))
-		proj_im	= pg.transform.scale(pg.image.load(CONFIG.get_asset_path("laser.png")), (100, 20))
+		image		= pg.transform.scale(pg.image.load(CONFIG.get_asset_path("monstres/hydre/hydre_tete.png")), (100, 100))
+		proj_image	= pg.transform.scale(pg.image.load(CONFIG.get_asset_path("laser.png")), (100, 20))
 
 		self.arm = CONFIG.game_state.add_entity(
-			Cannon(
+			EntitySpawner(
 				pos			= (20, 0),
-				im			= GameImage(im, 2.5),
-				proj_im		= GameImage(proj_im),
-				proj_speed	= 1000,
-				proj_dist	= 100,
-				cooldown	= 0.2,
+				image		= GameImage(image, 2.5),
+				spawn_kwargs = {
+					"image"				: GameImage(proj_image),
+					"movement_speed"	: 1000,
+					"collision_group"	: CollisionGroup.WEAPON_ALLY,
+				},
+				spawn_distance	= 100,
+				spawn_cooldown	= 0.2,
 				turn_speed	= 8,
-				proj_collision_group = CollisionGroup.ALLY,
 			))
 
 		self.arm.mvt.parent = self.mvt
@@ -215,27 +218,30 @@ class Projectile(Mortal):
 			self.die()
 
 
-class Cannon(Entity):
+class EntitySpawner(Entity):
 
 	def __init__(
 			self,
 			spawn_cooldown	= 0.1,
 			spawn_distance	= 0,
-			spawn_kwargs	= None,
+			spawn_class		= Projectile,
+			spawn_kwargs	= {},
 			**kwargs,
 		):
 		super().__init__(**kwargs)
 
-		self.spawn_distance		= spawn_distance
 		self.spawn_cooldown		= spawn_cooldown
-		self.spawn_time_left	= self.spawn_cooldown
+		self.spawn_distance		= spawn_distance
+		self.spawn_class		= spawn_class
 		if spawn_kwargs is None:
 			spawn_kwargs = {
 				"image"			: None,
 				"movement_speed": 500,
-				"lifetime"		: 100,
+				"lifetime"		: 1,
 			}
 		self.spawn_kwargs		= spawn_kwargs
+
+		self.spawn_time_left	= self.spawn_cooldown
 		self.enable_shooting	= True
 
 	def tick(self, dt):
@@ -246,21 +252,21 @@ class Cannon(Entity):
 		self.spawn_time_left -= dt
 		self.image.rotate_image_rad(angle)
 
-		if self.enable_shooting and self.spawn_timeleft <= 0:
-			self.timeleft = self.cooldown
+		if self.enable_shooting and self.spawn_time_left <= 0:
+			self.spawn_time_left = self.spawn_cooldown
 
 			direction	= pg.Vector2(cos(angle), sin(angle))
 
 			CONFIG.game_state.add_entity(
-				Projectile(
-					pos				= self.get_pos() + direction * self.projectile_distance,
+				self.spawn_class(
+					pos				= self.get_pos() + direction * self.spawn_distance,
 					angle			= angle,
 					**self.spawn_kwargs
 				)
 			)
 
 
-class AutoCannon(Cannon):
+class AutoCannon(EntitySpawner):
 
 	def __init__(
 			self,
@@ -275,7 +281,7 @@ class AutoCannon(Cannon):
 		self.enable_shooting = self.target is not None
 
 		if self.enable_shooting:
-			predicted_pos, self.enable_shooting = self.mvt.get_predicted_pos(self.target.mvt, self.projectile_speed)
+			predicted_pos, self.enable_shooting = self.mvt.get_predicted_pos(self.target.mvt, self.spawn_kwargs["movement_speed"], self.spawn_distance)
 			angle_to_target = self.mvt.turn_towards_pos(predicted_pos, self.turn_speed, dt)
 			# about 10 degrees range
 			if abs(math2.simplify_angle(angle_to_target - self.get_angle())) > 0.175:
