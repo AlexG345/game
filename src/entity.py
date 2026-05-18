@@ -3,6 +3,7 @@ from game_image import *
 from ressource import *
 from movement_handler import *
 from util.config import *
+from util import math2
 from math import *
 from collision import *
 
@@ -16,6 +17,7 @@ class Entity:
 		collision_group = None, # None or a CollisionGroup enum
 		movement_speed	= 10,
 		turn_speed		= 20,
+		parent			= None,
 		**kwargs
 	):
 		self.mvt = MovementHandler()
@@ -23,9 +25,15 @@ class Entity:
 		self.movement_speed	= movement_speed
 		self.movement_rate	= 5
 		self.valid	= True
-		self.image	= im
+		if im is not None and not isinstance(im, GameImage):
+			im = GameImage(im)
+		self.image = im
 		self.radius	= radius
 		self.turn_speed = turn_speed
+		self.children	= set()
+		self.parent		= parent
+		if self.parent is not None:
+			self.parent.children.add(self)
 
 		self.hitbox	= Hitbox(parent = self)
 
@@ -47,6 +55,8 @@ class Entity:
 
 	def die(self):
 		self.clear_collision_group()
+		for ent in self.children:
+			ent.die()
 		self.valid = False
 
 	def set_image(self, im):
@@ -109,11 +119,30 @@ class Player(Mortal):
 		super().__init__(**kwargs)
 		self.input = input
 
+		im		= pg.transform.scale(pg.image.load(CONFIG.get_asset_path("monstres/hydre/hydre_tete.png")), (100, 100))
+		proj_im	= pg.transform.scale(pg.image.load(CONFIG.get_asset_path("laser.png")), (100, 20))
+
+		self.arm = CONFIG.game_state.add_entity(
+			Cannon(
+				pos			= (20, 0),
+				im			= GameImage(im, 2.5),
+				proj_im		= GameImage(proj_im),
+				proj_speed	= 1000,
+				proj_dist	= 100,
+				cooldown	= 0.2,
+				turn_speed	= 8,
+				proj_collision_group = CollisionGroup.ALLY,
+			))
+
+		self.arm.mvt.parent = self.mvt
+		self.arm.mvt.max_angle_amplitude = 0.5
 
 	def tick(self, dt):
 
 		self.move(self.input.action_values["movement"]) # action values vector is already normalized
 		self.mvt.turn_towards_pos(CONFIG.game_state.camera.mouse_pos, self.turn_speed, dt)
+		self.arm.enable_shooting = pg.mouse.get_pressed()[0]
+		print(self.arm.enable_shooting)
 
 		super().tick(dt)
 
@@ -140,13 +169,18 @@ class Smart(Mortal):
 
 	def turn_towards_target(self, dt):
 		# TODO: replace this with predicted angle stuff from AutoCannon, remove the move and turn stuff from tick, might want to save predicted pos instead, idk
-		self.mvt.turn_towards_pos(self.target.get_pos(), self.turn_speed, dt)
+		return self.mvt.turn_towards_pos(self.target.get_pos(), self.turn_speed, dt)
 
 
 	def tick(self, dt):
 		#self.move_towards_target(dt)
-		self.turn_towards_target(dt)
-		self.mvt.move_forwards(self.movement_speed)
+		angle = self.turn_towards_target(dt)
+		#self.mvt.move_forwards(self.movement_speed)
+		correlation = max(0, self.mvt.direction.dot((cos(angle), sin(angle))))
+		self.mvt.move(
+			self.mvt.direction,
+			self.movement_speed * correlation
+		)
 		super().tick(dt)
 
 
@@ -185,19 +219,23 @@ class Cannon(Entity):
 
 	def __init__(
 			self,
-			proj_im		= None,
-			proj_speed	= 50,
-			proj_dist	= 0,
-			cooldown	= 0.1,
-			**kwargs
+			spawn_cooldown	= 0.1,
+			spawn_distance	= 0,
+			spawn_kwargs	= None,
+			**kwargs,
 		):
 		super().__init__(**kwargs)
-		self.projectile_distance = proj_dist
-		self.projectile_image = proj_im
-		self.projectile_speed = proj_speed
 
-		self.cooldown	= cooldown
-		self.timeleft	= self.cooldown
+		self.spawn_distance		= spawn_distance
+		self.spawn_cooldown		= spawn_cooldown
+		self.spawn_time_left	= self.spawn_cooldown
+		if spawn_kwargs is None:
+			spawn_kwargs = {
+				"image"			: None,
+				"movement_speed": 500,
+				"lifetime"		: 100,
+			}
+		self.spawn_kwargs		= spawn_kwargs
 		self.enable_shooting	= True
 
 	def tick(self, dt):
@@ -205,10 +243,10 @@ class Cannon(Entity):
 
 		angle = self.get_angle()
 
-		self.timeleft -= dt
+		self.spawn_time_left -= dt
 		self.image.rotate_image_rad(angle)
 
-		if self.enable_shooting and self.timeleft <= 0:
+		if self.enable_shooting and self.spawn_timeleft <= 0:
 			self.timeleft = self.cooldown
 
 			direction	= pg.Vector2(cos(angle), sin(angle))
@@ -217,9 +255,7 @@ class Cannon(Entity):
 				Projectile(
 					pos				= self.get_pos() + direction * self.projectile_distance,
 					angle			= angle,
-					collision_group	= CollisionGroup.ENEMY,
-					im				= GameImage(self.projectile_image),
-					movement_speed	= self.projectile_speed,
+					**self.spawn_kwargs
 				)
 			)
 
@@ -232,7 +268,7 @@ class AutoCannon(Cannon):
 			**kwargs
 		):
 		super().__init__(**kwargs)
-		self.target		= target
+		self.target	= target
 
 	def tick(self, dt):
 
@@ -241,9 +277,8 @@ class AutoCannon(Cannon):
 		if self.enable_shooting:
 			predicted_pos, self.enable_shooting = self.mvt.get_predicted_pos(self.target.mvt, self.projectile_speed)
 			angle_to_target = self.mvt.turn_towards_pos(predicted_pos, self.turn_speed, dt)
-			print("angular disease -_-:",angle_to_target - self.get_angle())
 			# about 10 degrees range
-			if abs(angle_to_target - self.get_angle()) > 0.175:
+			if abs(math2.simplify_angle(angle_to_target - self.get_angle())) > 0.175:
 				self.enable_shooting = False
 		#self.mvt.update_angle(atan2(y, x))#"+ uniform(-0.01, 0.01))
 		super().tick(dt)

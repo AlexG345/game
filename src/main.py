@@ -43,51 +43,64 @@ def game_loop(surface):
 	camera.target = player
 
 	im = pg.transform.scale(pg.image.load(CONFIG.get_asset_path("monstres/hydre/hydre_corps.png")), (100, 100))
+	im = pg.transform.rotate(im, 180)
 
 	enemy = game_state.add_entity(Smart(
 		im				= GameImage(im, 5),
+		collision_group = CollisionGroup.ENEMY,
 		target			= player,
-		movement_speed	= 200,
-		turn_speed		= 0.5,
+		movement_speed	= 500,
+		turn_speed		= 1,
+		radius			= 200,
 	))
 	print(enemy.movement_speed)
+	enemy.mvt.set_friction(1)
 
 	im				= pg.transform.scale(pg.image.load(CONFIG.get_asset_path("monstres/hydre/hydre_tete.png")), (100, 100))
 	neck_segment_im	= pg.transform.scale(pg.image.load(CONFIG.get_asset_path("monstres/hydre/hydre_cou.png")), (100, 100))
-	proj_im			= pg.transform.scale(pg.image.load(CONFIG.get_asset_path("laser.png")), (100, 20))
+	proj_im			= pg.transform.scale(pg.image.load(CONFIG.get_asset_path("laser.png")), (100, 100))
 
 	# IDEA: function to "heal" a neck segment until it regrows a head
 	# to spawn the hydra just heal its segments
 	# then have a cooldown that heals the segments while the hydra is alive?
 	# + add smooth turn
-	for i in range(-1, 2):
+	for i in range(-2, 3):
 		root = enemy
-		dx, dy = 200, 100 * i
-		for j in range(1, 8):
+		dx, dy = 200, 50 * i
+		base_angle = i * pi/4
+		for j in range(1, 7 - abs(i)):
 			neck = game_state.add_entity(AutoCannon(
-				pos			= (dx, dy),
-				im			= GameImage(neck_segment_im, 2.5),
-				target		= player,
-				cooldown	= 1000000,
-				turn_speed	= 0.1 * j,
+				pos				= (dx, dy),
+				im				= GameImage(neck_segment_im, 3),
+				target			= player,
+				cooldown		= 1000000,
+				turn_speed		= 0.1 * j,
+				parent			= root
 			))
-			neck.mvt.max_angle_amplitude = 0.5
-			dx, dy = 80, 0
 			neck.mvt.parent = root.mvt
+			neck.mvt.max_angle_amplitude = 0.15 + 0.2 * abs(i)
+			neck.mvt.base_angle = base_angle
+
 			root = neck
+			dx, dy = 80, 0
+			base_angle = 0
 
 		cannon = game_state.add_entity(AutoCannon(
-				pos			= (dx, 0),
-				im			= GameImage(im, 2.5),
-				proj_im		= GameImage(proj_im),
-				proj_speed	= 1000,
-				proj_dist	= 100,
-				target		= player,
-				cooldown	= 0.2,
-				turn_speed	= 8,
+				pos				= (dx, 0),
+				im				= GameImage(im, 2.5),
+				proj_dist		= 100,
+				proj_kwargs		= {
+					"image"			: GameImage(proj_im),
+					"movement_speed": 500,
+					"lifetime"		: 100,
+				},
+				target			= player,
+				cooldown		= 0.1,
+				turn_speed		= 8,
+				parent			= root
 		))
-		cannon.mvt.max_angle_amplitude = 0.4
 		cannon.mvt.parent = root.mvt
+		cannon.mvt.max_angle_amplitude = 0.4
 
 	while not quitting:
 		for event in pg.event.get():

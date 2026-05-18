@@ -18,9 +18,10 @@ class GameImage:
 		elif isinstance(im, pg.surface.Surface):
 			self.image = im.copy()
 		else:
-			self.image = pg.image.load(im).convert_alpha()
+			self.image = pg.image.load(im)
 
-		self.image_scaled = self.image.copy()
+		self.image = self.image.convert_alpha()
+		self.image_scaled = self.image.copy().convert_alpha()
 		self.update_center()
 
 	def get_size(self):

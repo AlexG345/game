@@ -14,6 +14,7 @@ class MovementHandler:
 		self.direction = pg.Vector2(cos(self.angle), sin(self.angle))
 		self.parent = None
 		self.max_angle_amplitude = pi
+		self.base_angle	= 0
 
 		# scalars
 		# self.speed = 250
@@ -35,7 +36,11 @@ class MovementHandler:
 		self.acceleration.update(*args)
 
 	def update_angle(self, angle):
-		angle = math2.clamp( math2.simplify_angle(angle), -self.max_angle_amplitude, self.max_angle_amplitude )
+		angle = math2.clamp(
+			math2.simplify_angle(angle),
+			self.base_angle - self.max_angle_amplitude,
+			self.base_angle + self.max_angle_amplitude
+		)
 		if angle != self.angle:
 			self.angle = angle
 			self.direction.update(cos(self.angle), sin(self.angle))
